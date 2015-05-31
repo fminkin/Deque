@@ -8,45 +8,35 @@
 template<class ElementType>
 class Deque{
 	ElementType *data;
-	size_t start, _end;
+	size_t _start, _end;
 	size_t memsize;
-	size_t actual_size;
-	void copy(size_t size_of_memory){
-		ElementType *new_data = new ElementType[memsize];
-		size_t p = start;
-		for (size_t i = 0; i < actual_size; i++){
+
+	void copy(size_t newsize){
+		size_t prev_size = size();
+		ElementType *new_data = new ElementType[newsize];
+		for (size_t i = 0, p = _start; i < size(), p != _end; i++, p = (p+1) % memsize){
 			new_data[i] = data[p];
-			if (p == size_of_memory - 1)
-				p = -1;
-			p++;
 		}
 		delete[]data;
 		data = new_data;
-		_end = actual_size;
-		start = 0;
+		_start = 0;
+		_end = (newsize == memsize *2) ? (memsize - 1) : prev_size;
 	}
 	void increase_memsize(){
-		if (!memsize){
-			memsize = 1;
-			data = new ElementType[1];
-			start = 0;
-			_end = start + 1;
-			return;
-		}
+		copy(memsize*2);
 		memsize *= 2;
-		copy(memsize / 2);
 	}
 	void reallocation(){
-		if (actual_size == memsize)
+		if (size() == memsize - 1)
 			increase_memsize();
-		if (actual_size * 4 == memsize)
+		if (size() * 4 == memsize && memsize > 4)
 			decrease_memsize();
 	}
 	void decrease_memsize(){
-		memsize = actual_size * 2;
-		copy(memsize * 2);
+		copy(memsize/2);
+		memsize /= 2;
 	}
-
+	
 	template<class _ElementType> //_ElementType = const ElementType if constIterator
 	class DequeIterator : public std::iterator<std::random_access_iterator_tag, ElementType, ptrdiff_t, _ElementType*, _ElementType&>{
 		typedef typename std::iterator<std::random_access_iterator_tag, ElementType, ptrdiff_t, _ElementType*, ElementType&>::difference_type differenceType;
@@ -55,10 +45,10 @@ class Deque{
 		const Deque<ElementType> *deque;
 
 		bool belong(size_t index) const{
-			if (deque->start <= deque->_end)
-				return (deque->start <= index && index <= deque->_end);
+			if (deque->_start <= deque->_end)
+				return (deque->_start <= index && index <= deque->_end);
 			else
-				return ((deque->start <= index &&  index < deque->memsize) || index <= deque->_end);
+				return ((deque->_start <= index &&  index < deque->memsize) || index <= deque->_end);
 		}
 
 	public:
@@ -111,14 +101,14 @@ class Deque{
 		bool operator<(const DequeIterator &it) const{
 			assert(belong(index) && belong(it.index));
 
-			if (deque->start <= deque->_end){
+			if (deque->_start <= deque->_end){
 				return (index < it.index);
 			} else {
-				if ((deque->start <= index && deque->start <= it.index) ||
+				if ((deque->_start <= index && deque->_start <= it.index) ||
 					(index <= deque->_end && it.index <= deque->_end)){
 					return (index < it.index);
 				} else {
-					return (deque->start <= index);
+					return (deque->_start <= index);
 				}
 			}
 		}
@@ -171,97 +161,88 @@ class Deque{
 			assert(belong(index) && belong(it.index));
 			return (index - it.index + deque->memsize) % deque->memsize;
 		}
+		DequeIterator& operator-=(const differenceType &i){
+ 			index = (index - i + deque->memsize) % deque->memsize;
+			assert(belong(index));
+ 			return *this;
+		}
 	};
 
 public:
 	typedef DequeIterator<ElementType> iterator;
 	typedef DequeIterator<const ElementType> constIterator;
 	Deque(){
-		data = 0;
-		start = _end = 0;
-		memsize = 0;
-		actual_size = 0;
+		_start = _end = 0;
+		memsize = 2;
+		data = new ElementType[memsize];
 	}
 	~Deque(){
 		delete[]data;
 	}
 	void push_back(ElementType a){
 		reallocation();
-		actual_size++;
-		if (memsize == 1){
-			*data = a;
-			return;
-		}
 		data[_end] = a;
 		_end = (_end + 1) % memsize;
-
 	}
 	void push_front(ElementType a){
 		reallocation();
-		actual_size++;
-		if (memsize == 1){
-			*data = a;
-			return;
-		}
-		start = (start - 1 + memsize) % memsize;
-		data[start] = a;
+		_start = (_start - 1 + memsize) % memsize;
+		data[_start] = a;
 
 	}
 	void pop_back(){
-		if (actual_size == 0){
+		if (size() == 0){
 			throw std::out_of_range("Deque subscript is out of range\n");
 		}
-		_end = (_end - 1 + memsize) % memsize;
-		actual_size--;
 		reallocation();
+		_end = (_end - 1 + memsize) % memsize;	
 	}
 	void pop_front(){
-		if (actual_size == 0){
+		if (size() == 0){
 			throw std::out_of_range("Deque subscript is out of range\n");
 		}
-		start = (start + 1) % memsize;
-		actual_size--;
 		reallocation();
+		_start = (_start + 1) % memsize;
 	}
 	ElementType& front(){
-		if (actual_size == 0)
+		if (size() == 0)
 			throw std::out_of_range("Deque subscript is out of range\n");
-		return data[start];
+		return data[_start];
 	}
 	const ElementType& front() const{
-		if (actual_size == 0)
+		if (size() == 0)
 			throw std::out_of_range("Deque subscript is out of range\n");
-		return data[start];
+		return data[_start];
 	}
 	ElementType& back(){
-		if (actual_size == 0)
+		if (size() == 0)
 			throw std::out_of_range("Deque subscript is out of range\n");
 		return data[_end ? _end - 1 : memsize - 1];
 	}
 	const ElementType& back() const{
-		if (actual_size == 0)
+		if (size() == 0)
 			throw std::out_of_range("Deque subscript is out of range\n");
 		return data[_end ? _end - 1 : memsize - 1];
 	}
 	ElementType& operator[](size_t number){
-		if (number >= actual_size)
+		if (number >= size())
 			throw std::out_of_range("Deque subscript is out of range\n");
-		return *(data + (start + number) % memsize);
+		return *(data + (_start + number) % memsize);
 	}
 	ElementType& operator[](size_t number) const{
-		if (number >= actual_size)
+		if (number >= size())
 			throw std::out_of_range("Deque subscript is out of range\n");
-		return *(data + (start + number) % memsize);
+		return *(data + (_start + number) % memsize);
 	}
 	bool empty() const{
-		return actual_size == 0 ? true : false;
+		return size() == 0 ? true : false;
 	}
 	size_t size() const{
-		return actual_size;
+		return (_end - _start + memsize) % memsize;
 	}
 
 	iterator begin(){
-		return iterator(start, this);
+		return iterator(_start, this);
 	}
 
 	iterator end(){
@@ -269,7 +250,7 @@ public:
 	}
 
 	constIterator cbegin(){
-		return constIterator(start, this);
+		return constIterator(_start, this);
 	}
 
 	constIterator cend(){
